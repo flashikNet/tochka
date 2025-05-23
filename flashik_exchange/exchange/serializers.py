@@ -2,8 +2,6 @@ from rest_framework import serializers
 from .models import User, Instrument, Order, Transaction
 
 # Схема для регистрации нового пользователя
-
-
 class NewUserSerializer(serializers.Serializer):
     name = serializers.CharField(min_length=3)
 
@@ -17,42 +15,69 @@ class UserSerializer(serializers.ModelSerializer):
 class InstrumentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Instrument
-        fields = ['ticker', 'name']
+        fields = ['name', 'ticker']
 
 
 class TransactionSerializer(serializers.ModelSerializer):
-    instrument = InstrumentSerializer(read_only=True)
-
     class Meta:
         model = Transaction
-        fields = ['instrument', 'amount', 'price', 'timestamp']
+        fields = ['ticker', 'amount', 'price', 'timestamp']
 
-# Сериализатор для лимитного ордера (обязательное поле price)
+
+class LimitOrderBodySerializer(serializers.Serializer):
+    direction = serializers.ChoiceField(choices=['BUY', 'SELL'])
+    ticker = serializers.CharField()
+    qty = serializers.IntegerField(min_value=1)
+    price = serializers.IntegerField(min_value=1)
+
+
+class MarketOrderBodySerializer(serializers.Serializer):
+    direction = serializers.ChoiceField(choices=['BUY', 'SELL'])
+    ticker = serializers.CharField()
+    qty = serializers.IntegerField(min_value=1)
 
 
 class LimitOrderSerializer(serializers.ModelSerializer):
+    body = LimitOrderBodySerializer(source='*')
+    filled = serializers.IntegerField(default=0)
+
     class Meta:
         model = Order
-        fields = ['id', 'ticker', 'direction',
-                  'qty', 'price', 'status', 'filled']
+        fields = ['id', 'status', 'user_id', 'body', 'filled']
 
-    def create(self, validated_data):
-        validated_data['order_type'] = 'LIMIT'
-        return super().create(validated_data)
-
-# Сериализатор для рыночного ордера (без поля price)
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        body = ret.pop('body')
+        ret['body'] = {
+            'direction': body['direction'],
+            'ticker': body['ticker'],
+            'qty': body['qty'],
+            'price': body['price']
+        }
+        return ret
 
 
 class MarketOrderSerializer(serializers.ModelSerializer):
+    body = MarketOrderBodySerializer(source='*')
+
     class Meta:
         model = Order
-        fields = ['id', 'ticker', 'direction', 'qty', 'status']
+        fields = ['id', 'status', 'user_id', 'body']
 
-    def create(self, validated_data):
-        validated_data['order_type'] = 'MARKET'
-        return super().create(validated_data)
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        body = ret.pop('body')
+        ret['body'] = {
+            'direction': body['direction'],
+            'ticker': body['ticker'],
+            'qty': body['qty']
+        }
+        return ret
 
-# Сериализаторы для депозитов и снятий
+
+class CreateOrderResponseSerializer(serializers.Serializer):
+    success = serializers.BooleanField(default=True)
+    order_id = serializers.UUIDField()
 
 
 class DepositSerializer(serializers.Serializer):
@@ -63,3 +88,7 @@ class DepositSerializer(serializers.Serializer):
 class WithdrawSerializer(serializers.Serializer):
     ticker = serializers.CharField()
     amount = serializers.IntegerField(min_value=1)
+
+
+class OkSerializer(serializers.Serializer):
+    success = serializers.BooleanField(default=True)
