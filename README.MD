@@ -14,7 +14,7 @@ REST API биржа для торговли активами, разработа
 ### 1. Клонирование репозитория
 
 ```bash
-git clone <url-репозитория>
+git clone git@github.com:flashikNet/tochka.git
 cd tochka
 ```
 
